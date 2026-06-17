@@ -1,68 +1,129 @@
-# Google Classroom 検証・開発仕様書
+# Google Classroom 機能改善プロジェクト
 
-Google Classroom を検証目的で使用するためのアカウント選定、機能比較、および各種 API / 外部連携（GAS・Python）の実装仕様をまとめたドキュメントです。
+## 1. 研究の背景と目的
 
----
-
-## 1. 検証用サインアップと環境選定
-
-Google Classroom は、特別な審査や契約手続きをすることなく、**個人の通常アカウント（Gmail アカウント）で今すぐ無料でサインアップして検証目的で利用可能**です。
-
-### 💡 検証のアプローチ
-1. **手軽に基本機能をテストしたい場合（個人アカウント）**
-   * 日常的に使用している `〜@gmail.com` のアカウントで [Google Classroom 公式サイト](https://classroom.google.com/) にアクセスするだけで開始可能。
-   * 無料の Gmail アカウントを2つ（教師役1つ、生徒役1つ）用意すれば、課題の配布・提出・採点の一連のフローを1台のPCやスマホで100%体験・検証できます。
-2. **本番環境に近い管理機能をテストしたい場合（Workspace）**
-   * 組織全体の管理、セキュリティポリシー、高度な連携機能を検証したい場合は、企業向け・教育機関向けの `Google Workspace` の無料トライアル環境や、テスト用サブドメインの構築が必要です。
+学校で日常的に使用しているGoogle Classroomには、生徒・教師の両方が不便に感じる機能上の制約が存在する。本研究では、使用者側の視点からGoogle Classroomの課題を洗い出し、GASや外部サービスとの連携によって機能不足を補う改善策を開発・検証する。
 
 ---
 
-## 2. 無料（個人向け）と有料・組織向け（Workspace）の機能比較
+## 2. リサーチクエスチョンと仮説
 
-生徒側および管理者側での主な仕様・制限の違いは以下の通りです。
+**RQ：** 自分たちが既存のGoogle Classroomに対して、より便利にするには何ができるか。
 
-| 機能項目 | 個人向け無料版 (`@gmail.com`) | 学校・組織向け (Google Workspace) |
+**仮説：** 使用者側の視点から改善案を出し、外部ツール（GASまたは外部サービス）との連携によって機能不足を解消できる。
+
+---
+
+## 3. 前提知識・現状整理
+
+### Google Classroomアカウントの種類と制限
+
+Google Classroomは、個人用Gmailアカウント（無料）と学校・組織向けGoogle Workspace（有料）で利用可能な機能が大きく異なる。
+
+| 機能項目 | 個人向け無料版（@gmail.com） | 学校・組織向け（Google Workspace） |
 | :--- | :--- | :--- |
-| **接続制限** | 個人アカウント同士でのみやり取り可能 | 学校の独自ドメイン（`@school.ed.jp` 等）で管理。外部アカウントの参入を制限可能 |
-| **Google Meet 連携** | 会議ごとに毎回URLを発行して共有 | クラスごとに「常設の参加リンク」を固定設置可能 |
-| **Classroom アドオン** | 利用不可 | 有料プランで利用可。他社製学習アプリを Classroom 内に統合可能 |
-| **演習セット・動画機能**| 利用不可 | 有料プランで利用可。AIがヒントを出すインタラクティブな課題 |
-| **独自性レポート** | 制限あり（確認回数が少ない） | 生徒の提出物が Web 上の文章のコピペでないか自動照合 |
-| **ストレージ容量** | 15 GB（ドライブやメール全体で共有） | 組織全体で 100 TB 以上の膨大な共有ストレージ（プランによる） |
-| **管理者コントロール** | なし（各ユーザーが管理） | 管理コンソールから一括で機能制限（チャット禁止等）が可能 |
+| **接続制限** | 個人アカウント同士のみ | 学校の独自ドメインで管理。外部アカウントの参入を制限可能 |
+| **Google Meet 連携** | 毎回URLを発行して共有 | クラスごとに常設の参加リンクを固定設置可能 |
+| **Classroomアドオン** | 利用不可 | 有料プランで利用可 |
+| **演習セット・動画機能** | 利用不可 | AIがヒントを出すインタラクティブな課題が可能 |
+| **独自性レポート** | 制限あり（確認回数が少ない） | 提出物の自動照合が可能 |
+| **ストレージ容量** | 15GB（全サービス共有） | 組織全体で100TB以上（プランによる） |
+| **管理者コントロール** | なし | 管理コンソールから一括制限が可能 |
+
+### 外部ツールによる拡張の概要
+
+機能不足を補う手段として、主に以下の2つのアプローチがある。
+
+| アプローチ | 概要 | 向いているケース |
+| :--- | :--- | :--- |
+| **GAS（Google Apps Script）** | JavaScriptベース。サーバー不要で無料利用可能。Classroom APIと連携して自動化処理を実装できる | 繰り返し作業の自動化（課題の一括配布・集計など） |
+| **外部サービス連携** | PythonなどからClassroom APIを呼び出し、独自のWebアプリや通知システムと組み合わせる | Classroomにない機能を別サービスで補う（通知、ダッシュボード、分析など） |
 
 ---
 
-## 3. Google Apps Script (GAS) による拡張
-JavaScript ベースで、サーバーを用意することなく Classroom の自動化ができる環境です。個人無料アカウントで今すぐ完全無料で開発・テストが可能です。
+## 4. 研究デザインと実験計画
 
-### 📜 サンプルコード（クラスの一括作成）
-Google スプレッドシートの「拡張機能」>「Apps Script」に貼り付けて実行します。
-※事前に GAS 画面左側の「サービス」から **Classroom API** を追加してください。
+### 改善対象と課題の特定
+
+**（生徒・教師へのヒアリング後に記入）**
+
+> ヒアリング項目の例：
+> * Google Classroomを使っていて「できない」「不便だ」と感じた具体的な場面は何か
+> * 生徒として不便なこと・教師として不便なことはそれぞれ何か
+> * もし1つだけ改善できるとしたら、最も解決したい問題は何か
+
+### 改善アプローチの選定
+
+ヒアリングで特定した課題の内容に応じて、GAS拡張・外部サービス連携のいずれか（または組み合わせ）を選定する。
+
+---
+
+## 5. 計測方法と評価指標
+
+改善の成否は以下の3段階で評価する。
+
+| 評価軸 | 測定方法 |
+| :--- | :--- |
+| **機能不足の解消**（最低条件） | 「以前はできなかったことが、改善後にできるようになったか」をチェックリストで確認 |
+| **作業時間の短縮** | 改善前後で同じ作業にかかった時間を計測・比較 |
+| **使用率・満足度の向上** | 改善後のアンケートで「使いやすくなったか」を5段階評価で回収 |
+
+---
+
+## 6. 研究プロセス（フェーズ別）
+
+| フェーズ | 内容 |
+| :--- | :--- |
+| **現状調査フェーズ** | 生徒・教師へのヒアリングで不満・課題を収集し、優先度を整理 |
+| **課題定義フェーズ** | 改善対象を1〜2つに絞り、RQと仮説を具体化 |
+| **開発フェーズ** | GASまたは外部サービスとの連携を実装 |
+| **検証フェーズ** | 実際の学校環境で動作させ、評価指標を計測 |
+| **発表準備フェーズ** | 結果の整理・スライド作成・発表練習 |
+
+---
+
+## 7. 最終アウトプット（スライド発表構成案）
+
+| スライド | 内容 |
+| :--- | :--- |
+| 表紙 | テーマ・班名 |
+| 背景と目的 | Google Classroomを使っていて感じた課題 |
+| RQと仮説 | 何を改善し、どう解決できると考えたか |
+| 現状整理 | 無料版と有料版の機能差、外部ツールでできること |
+| 改善アプローチ | GASまたは外部サービス連携の選定理由と設計 |
+| 実装内容 | 開発したコード・仕組みのデモ |
+| 検証結果 | 評価指標（機能解消・時間短縮・満足度）の計測結果 |
+| 考察 | できたこと・できなかったこと・工夫した点 |
+| 結論・提言 | 他の学校でも使えるか、次の改善アイデア |
+
+---
+
+## 付録：GASおよびPython APIの実装サンプル
+
+### GAS：クラスの一括作成
+
+Google スプレッドシートの「拡張機能」>「Apps Script」に貼り付けて実行する。
+事前にGAS画面左側の「サービス」から **Classroom API** を追加すること。
 
 ```javascript
 function createClassroomCourses() {
-  // スプレッドシートのアクティブシートからデータを取得
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = sheet.getDataRange().getValues(); // 1行目がヘッダー、2行目からデータと想定
-  
-  // 2行目から順番に処理
+  const data = sheet.getDataRange().getValues(); // 1行目がヘッダー、2行目からデータ
+
   for (let i = 1; i < data.length; i++) {
     const className = data[i][0]; // A列：クラス名
     const section   = data[i][1]; // B列：セクション（例：1組、2組）
-    
+
     if (!className) continue;
-    
-    // Classroom APIの仕様に沿ったオブジェクトの作成
+
     const courseInfo = {
       name: className,
       section: section,
-      ownerId: 'me', // 実行している本人のアカウントが教師になる
+      ownerId: 'me',
       courseState: 'ACTIVE'
     };
-    
+
     try {
-      // クラスの作成実行
       const createdCourse = Classroom.Courses.create(courseInfo);
       Logger.log('クラスを作成しました: ' + createdCourse.name + ' (ID: ' + createdCourse.id + ')');
     } catch (e) {
@@ -72,21 +133,13 @@ function createClassroomCourses() {
 }
 ```
 
----
+### Python API：クラス一覧の取得（接続テスト）
 
-## 4. Python による 外部 API 連携
+事前準備：
+1. Google Cloud Console でプロジェクトを作成し、**Google Classroom API** を有効化
+2. OAuth 2.0 クライアント ID を作成し、`credentials.json` としてダウンロード
+3. `pip install google-auth-oauthlib google-api-python-client` を実行
 
-Python から Google Classroom API を呼び出し、データの取得や生徒と先生のやり取りをシミュレートする実装例です。
-
-### 🛠️ 事前準備
-1. Google Cloud Console でプロジェクトを作成し、**Google Classroom API** を有効化。
-2. 「認証情報」から **OAuth 2.0 クライアント ID** を作成し、`credentials.json` としてダウンロード。
-3. 必要なライブラリのインストール:
-   ```bash
-   pip install google-auth-oauthlib google-api-python-client
-   ```
-
-### 📜 例1：所属するクラス一覧の取得（基本接続テスト）
 ```python
 import os.path
 from google.auth.transport.requests import Request
@@ -95,7 +148,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-SCOPES = ["https://googleapis.com"]
+SCOPES = ["https://www.googleapis.com/auth/classroom.courses.readonly"]
 
 def main():
     creds = None
@@ -112,7 +165,6 @@ def main():
 
     try:
         service = build("classroom", "v1", credentials=creds)
-        print("クラス一覧を取得中...")
         result = service.courses().list(pageSize=10).execute()
         courses = result.get("courses", [])
 
@@ -120,94 +172,11 @@ def main():
             print("有効なクラスが見つかりませんでした。")
             return
 
-        print("\n--- あなたのクラス一覧 ---")
         for course in courses:
             print(f"クラス名: {course.get('name')} (ID: {course.get('id')})")
 
     except HttpError as error:
         print(f"APIエラーが発生しました: {error}")
-
-if __name__ == "__main__":
-    main()
-```
-
-### 📜 例2：先生とのやり取り（生徒視点での課題確認・メッセージ・提出）
-```python
-import os.path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-
-# 課題の確認・コメント送信・提出に必要な権限（スコープの重複は修正済み）
-SCOPES = ["https://googleapis.com"]
-
-def main():
-    creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
-
-    service = build("classroom", "v1", credentials=creds)
-
-    # 検証用の各種ID（実際の環境の値に書き換えてください）
-    COURSE_ID = "123456789012"      
-    COURSEWORK_ID = "987654321012"  
-
-    try:
-        # 1. 先生が出した課題（Coursework）の内容を確認する
-        print("💡 1. 先生からの課題を取得しています...")
-        assignment = service.courses().courseWork().get(
-            courseId=COURSE_ID, 
-            id=COURSEWORK_ID
-        ).execute()
-        print(f"【課題タイトル】: {assignment.get('title')}")
-        print(f"【先生からの指示】: {assignment.get('description')}\n")
-
-        # 2. 先生に非公開コメント（プライベートメッセージ）を送る
-        print("💬 2. 先生に質問メッセージを送信します...")
-        comment_body = {
-            "text": "先生、課題のプログラムが完成しました。確認をお願いします！"
-        }
-        comment_response = service.courses().courseWork().studentSubmissions().comments().create(
-            courseId=COURSE_ID,
-            courseWorkId=COURSEWORK_ID,
-            submissionId="me", # 'me' は実行中の生徒自身を指す
-            body=comment_body
-        ).execute()
-        print(f"👉 メッセージを送信しました: \"{comment_response.get('text')}\"\n")
-
-        # 3. 課題を「提出（TurnIn）」する
-        print("🚀 3. 課題を提出（Turn In）します...")
-        submissions_result = service.courses().courseWork().studentSubmissions().list(
-            courseId=COURSE_ID,
-            courseWorkId=COURSEWORK_ID,
-            userId="me"
-        ).execute()
-        
-        submissions = submissions_result.get("studentSubmissions", [])
-        
-        if submissions:
-            submission_id = submissions[0].get("id")
-            service.courses().courseWork().studentSubmissions().turnIn(
-                courseId=COURSE_ID,
-                courseWorkId=COURSEWORK_ID,
-                id=submission_id,
-                body={}
-            ).execute()
-            print("✅ 課題の提出が完了しました！")
-        else:
-            print("❌ 提出データが見つかりませんでした。")
-
-    except Exception as e:
-        print(f"エラーが発生しました: {e}")
 
 if __name__ == "__main__":
     main()
